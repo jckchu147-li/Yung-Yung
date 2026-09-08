@@ -4,7 +4,7 @@ const SETUP = window.CASE_TRACKER_SETUP || {};
 const CONFIG = Object.freeze({
   GAS_API_URL: String(SETUP.GAS_API_URL || ""),
   LIFF_ID: String(SETUP.LIFF_ID || ""),
-  APP_VERSION: "v260908.2309",
+  APP_VERSION: "v260908.2342",
   REQUEST_TIMEOUT_MS: 18000
 });
 
@@ -27,6 +27,7 @@ const state = {
   cases: [],
   openCaseIds: new Set(),
   isBusy: false,
+  pendingMutation: null,
   toastTimer: null,
   lastFocusedElement: null,
   webMcpController: null
@@ -275,6 +276,7 @@ function showApp() {
 function clearPrivateState() {
   state.cases = [];
   state.members = [];
+  state.pendingMutation = null;
   state.openCaseIds.clear();
   document.getElementById("case-list").replaceChildren();
   if (state.webMcpController) {
@@ -737,12 +739,20 @@ async function runMutation(payload) {
   }
   state.isBusy = true;
   setSyncState("儲存中…");
+  // 逾時後手動重送同一筆操作時沿用同一個 mutationId，
+  // 讓後端的冪等快取擋掉「前端放棄但後端已寫入」造成的重複紀錄。
+  const signature = JSON.stringify(payload);
+  const mutationId = state.pendingMutation?.signature === signature
+    ? state.pendingMutation.mutationId
+    : createId();
   try {
-    const result = await callApi({ ...payload, mutationId: createId() });
+    const result = await callApi({ ...payload, mutationId });
+    state.pendingMutation = null;
     applyServerPayload(result);
     renderCases();
     setSyncState("已同步");
   } catch (error) {
+    state.pendingMutation = { signature, mutationId };
     setSyncState("儲存失敗");
     throw error;
   } finally {
