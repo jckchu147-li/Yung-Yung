@@ -4,9 +4,11 @@ const SETUP = window.CASE_TRACKER_SETUP || {};
 const CONFIG = Object.freeze({
   GAS_API_URL: String(SETUP.GAS_API_URL || ""),
   LIFF_ID: String(SETUP.LIFF_ID || ""),
-  APP_VERSION: "v260908.2342",
+  APP_VERSION: "v260909.0209",
   REQUEST_TIMEOUT_MS: 18000
 });
+
+const MIN_ADMIN_PASSWORD = 8;
 
 const STATUS_PROGRESS = Object.freeze({
   "洽談中": 33,
@@ -28,6 +30,7 @@ const state = {
   openCaseIds: new Set(),
   isBusy: false,
   pendingMutation: null,
+  filters: { status: "", sort: "status", showArchived: false },
   toastTimer: null,
   lastFocusedElement: null,
   webMcpController: null
@@ -98,7 +101,13 @@ function bindStaticEvents() {
   document.getElementById("edit-form").addEventListener("submit", submitCaseEdit);
   document.getElementById("edit-description").addEventListener("input", updateDescriptionCount);
   document.getElementById("case-list").addEventListener("click", handleCaseListClick);
-  document.getElementById("case-list").addEventListener("submit", handleQuickEntrySubmit);
+  document.getElementById("case-list").addEventListener("submit", handleCaseListSubmit);
+  document.getElementById("status-filters").addEventListener("click", handleStatusFilterClick);
+  document.getElementById("sort-select").addEventListener("change", (event) => {
+    state.filters.sort = event.target.value;
+    renderCases();
+  });
+  document.getElementById("archive-toggle").addEventListener("click", toggleArchivedView);
 
   document.querySelectorAll("[data-close-modal]").forEach((button) => {
     button.addEventListener("click", () => closeModal(button.dataset.closeModal));
@@ -159,15 +168,17 @@ function createPreviewCases(now) {
       contractAmount: 2800000,
       dealOwnerUserId: "preview-user-2",
       dealOwnerName: "林專案",
-      crew: "禾木工班、景盛水電",
+      updatedAt: now.toISOString(),
+      partners: [{ id: "pa1", name: "禾木工班" }, { id: "pa2", name: "景盛水電" }],
+      archived: false,
       expectedExpense: 1960000,
       payments: [
         { id: "p1", personName: "林專案", amount: 840000, method: "簽約款／匯款", createdAt: now.toISOString() },
         { id: "p2", personName: "陳設計師", amount: 560000, method: "工程款／匯款", createdAt: now.toISOString() }
       ],
       expenses: [
-        { id: "e1", personName: "周工務", amount: 420000, method: "木作首期", createdAt: now.toISOString() },
-        { id: "e2", personName: "陳設計師", amount: 168000, method: "空調訂金", createdAt: now.toISOString() }
+        { id: "e1", personName: "周工務", partnerName: "禾木工班", amount: 420000, method: "木作首期", createdAt: now.toISOString() },
+        { id: "e2", personName: "陳設計師", partnerName: "景盛水電", amount: 168000, method: "空調訂金", createdAt: now.toISOString() }
       ],
       history: [
         { id: "h2", timestamp: now.toISOString(), actorName: "陳設計師", action: "更新案件", detail: "狀態改為施工中" },
@@ -188,7 +199,9 @@ function createPreviewCases(now) {
       contractAmount: 1600000,
       dealOwnerUserId: "preview-user-2",
       dealOwnerName: "林專案",
-      crew: "待確認",
+      updatedAt: new Date(now.getTime() - 86400000 * 2).toISOString(),
+      partners: [],
+      archived: false,
       expectedExpense: 1120000,
       payments: [{ id: "p3", personName: "林專案", amount: 160000, method: "設計訂金", createdAt: now.toISOString() }],
       expenses: [],
@@ -208,11 +221,35 @@ function createPreviewCases(now) {
       contractAmount: 680000,
       dealOwnerUserId: "preview-user-1",
       dealOwnerName: "陳設計師",
-      crew: "拾光軟裝",
+      updatedAt: new Date(now.getTime() - 86400000 * 9).toISOString(),
+      partners: [{ id: "pa3", name: "拾光軟裝" }],
+      archived: false,
       expectedExpense: 430000,
       payments: [{ id: "p4", personName: "陳設計師", amount: 680000, method: "匯款", createdAt: now.toISOString() }],
-      expenses: [{ id: "e3", personName: "陳設計師", amount: 418000, method: "家具與佈置結清", createdAt: now.toISOString() }],
+      expenses: [{ id: "e3", personName: "陳設計師", partnerName: "拾光軟裝", amount: 418000, method: "家具與佈置結清", createdAt: now.toISOString() }],
       history: [{ id: "h4", timestamp: now.toISOString(), actorName: "陳設計師", action: "案件結案", detail: "所有款項已完成核對" }]
+    },
+    {
+      id: "preview-case-4",
+      title: "大安區舊公寓拉皮",
+      date: new Date(now.getTime() - 86400000 * 240).toISOString().slice(0, 10),
+      status: "已結案",
+      ownerUserId: "preview-user-3",
+      ownerName: "周工務",
+      description: "外牆與公共梯廳整修",
+      addressRaw: "",
+      addressDisplay: "",
+      addressUrl: "",
+      contractAmount: 950000,
+      dealOwnerUserId: "preview-user-3",
+      dealOwnerName: "周工務",
+      updatedAt: new Date(now.getTime() - 86400000 * 200).toISOString(),
+      partners: [{ id: "pa4", name: "宏昌泥作" }],
+      archived: true,
+      expectedExpense: 700000,
+      payments: [{ id: "p5", personName: "周工務", amount: 950000, method: "尾款結清", createdAt: now.toISOString() }],
+      expenses: [{ id: "e4", personName: "周工務", partnerName: "宏昌泥作", amount: 690000, method: "工程結清", createdAt: now.toISOString() }],
+      history: [{ id: "h5", timestamp: now.toISOString(), actorName: "周工務", action: "封存案件", detail: "大安區舊公寓拉皮" }]
     }
   ];
 }
@@ -358,8 +395,8 @@ async function logout() {
 async function submitVerification(event) {
   event.preventDefault();
   const password = document.getElementById("admin-password").value;
-  if (password.length < 10) {
-    setFormError("verify-error", "驗證碼至少需要 10 個字元。");
+  if (password.length < MIN_ADMIN_PASSWORD) {
+    setFormError("verify-error", `驗證碼至少需要 ${MIN_ADMIN_PASSWORD} 個字元。`);
     return;
   }
 
@@ -412,19 +449,51 @@ function toggleAccountMenu() {
   document.getElementById("member-button").setAttribute("aria-expanded", String(!menu.hidden));
 }
 
+function handleStatusFilterClick(event) {
+  const chip = event.target.closest("[data-status]");
+  if (!chip) return;
+  state.filters.status = chip.dataset.status;
+  document.querySelectorAll("#status-filters .chip").forEach((button) => {
+    button.classList.toggle("is-active", button === chip);
+  });
+  renderCases();
+}
+
+function toggleArchivedView() {
+  state.filters.showArchived = !state.filters.showArchived;
+  const button = document.getElementById("archive-toggle");
+  button.classList.toggle("is-active", state.filters.showArchived);
+  button.setAttribute("aria-pressed", String(state.filters.showArchived));
+  button.textContent = state.filters.showArchived ? "顯示進行中" : "顯示封存";
+  renderCases();
+}
+
+function getVisibleCases() {
+  const { status, sort, showArchived } = state.filters;
+  const visible = state.cases.filter((item) =>
+    Boolean(item.archived) === showArchived && (!status || item.status === status));
+
+  if (sort === "status") {
+    const statusOrder = { "施工中": 0, "洽談中": 1, "已結案": 2 };
+    return visible.sort((a, b) => {
+      const byStatus = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
+      if (byStatus !== 0) return byStatus;
+      return String(b.date || "").localeCompare(String(a.date || ""));
+    });
+  }
+  const direction = sort === "date-asc" ? 1 : -1;
+  return visible.sort((a, b) => direction * String(a.date || "").localeCompare(String(b.date || "")));
+}
+
 function renderCases() {
   const list = document.getElementById("case-list");
-  const sortedCases = [...state.cases].sort((a, b) => {
-    const statusOrder = { "施工中": 0, "洽談中": 1, "已結案": 2 };
-    const byStatus = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
-    if (byStatus !== 0) return byStatus;
-    return String(b.date || "").localeCompare(String(a.date || ""));
-  });
+  const visible = getVisibleCases();
+  const suffix = state.filters.showArchived ? "件封存案件" : "件案件";
 
-  document.getElementById("case-count").textContent = `${sortedCases.length} 件案件`;
-  document.getElementById("empty-state").hidden = sortedCases.length > 0;
-  list.hidden = sortedCases.length === 0;
-  list.innerHTML = sortedCases.map(renderCaseCard).join("");
+  document.getElementById("case-count").textContent = `${visible.length} ${suffix}`;
+  document.getElementById("empty-state").hidden = visible.length > 0;
+  list.hidden = visible.length === 0;
+  list.innerHTML = visible.map(renderCaseCard).join("");
 }
 
 function renderCaseCard(caseItem) {
@@ -440,11 +509,14 @@ function renderCaseCard(caseItem) {
     <article class="case-card${isOpen ? " is-open" : ""}" data-case-id="${escapeAttribute(caseItem.id)}">
       <button class="case-summary" type="button" data-action="toggle-case" aria-expanded="${isOpen}">
         <time class="summary-date" datetime="${escapeAttribute(caseItem.date)}">${escapeHtml(formatDate(caseItem.date))}</time>
-        <span class="summary-title">${escapeHtml(caseItem.title || "未命名案件")}</span>
+        <span class="summary-title">
+          <strong>${escapeHtml(caseItem.title || "未命名案件")}</strong>
+          <small class="summary-updated">更新於 ${escapeHtml(formatDateOnly(caseItem.updatedAt))}</small>
+        </span>
         <span class="money-ratio money-ratio-payment"><small>收款比例</small><strong>${paymentPercent}</strong></span>
         <span class="money-ratio money-ratio-expense"><small>支出比例</small><strong>${expensePercent}</strong></span>
         <span class="summary-owner">${escapeHtml(caseItem.ownerName || "未指定")}</span>
-        <span class="summary-status status-badge ${statusClass}">${escapeHtml(caseItem.status || "洽談中")}</span>
+        <span class="summary-status status-badge ${statusClass}">${escapeHtml(caseItem.status || "洽談中")}${caseItem.archived ? "・已封存" : ""}</span>
         <span class="chevron" aria-hidden="true"></span>
       </button>
       <div class="status-track" role="progressbar" aria-label="案件進度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}">
@@ -460,14 +532,16 @@ function renderCaseDetail(caseItem, paymentTotal, expenseTotal) {
     <section class="case-detail">
       <div class="detail-toolbar">
         <button class="edit-main-button" type="button" data-action="edit-case" data-field="title">編輯案件</button>
+        <button class="edit-main-button" type="button" data-action="copy-ledger">複製會計資料</button>
+        <button class="edit-main-button" type="button" data-action="toggle-archive">${caseItem.archived ? "取消封存" : "封存案件"}</button>
       </div>
       <div class="detail-grid">
         ${renderDetailField("案件描述", caseItem.description || "尚未填寫", "description", true)}
         ${renderAddressField(caseItem)}
         ${renderDetailField("成案價", formatCurrency(caseItem.contractAmount), "contractAmount")}
         ${renderDetailField("成案負責人", caseItem.dealOwnerName || "尚未指定", "dealOwnerUserId")}
-        ${renderDetailField("負責工班", caseItem.crew || "尚未填寫", "crew")}
         ${renderDetailField("預計支出", formatCurrency(caseItem.expectedExpense), "expectedExpense")}
+        ${renderPartnersField(caseItem)}
       </div>
       <div class="ledger-grid">
         ${renderLedgerPanel("payment", "收款紀錄", caseItem, paymentTotal)}
@@ -476,6 +550,35 @@ function renderCaseDetail(caseItem, paymentTotal, expenseTotal) {
       ${renderHistory(caseItem.history)}
     </section>
   `;
+}
+
+function renderPartnersField(caseItem) {
+  const partners = getPartners(caseItem);
+  return `
+    <div class="detail-field detail-field-wide partner-field">
+      <span class="detail-label">合作單位</span>
+      <div class="detail-value">
+        <form class="partner-form" data-partner-form data-case-id="${escapeAttribute(caseItem.id)}" novalidate>
+          <input class="text-input" name="partnerName" maxlength="80" placeholder="新增合作單位" aria-label="合作單位名稱" required>
+          <button class="quick-add-button" type="submit">新增</button>
+        </form>
+        ${partners.length ? `
+          <ul class="partner-list">
+            ${partners.map((partner) => `
+              <li class="partner-item">
+                <span>${escapeHtml(partner.name)}</span>
+                <button type="button" data-action="remove-partner" data-partner-id="${escapeAttribute(partner.id)}" aria-label="刪除 ${escapeAttribute(partner.name)}">刪除</button>
+              </li>
+            `).join("")}
+          </ul>
+        ` : `<p class="list-placeholder">尚未新增合作單位</p>`}
+      </div>
+    </div>
+  `;
+}
+
+function getPartners(caseItem) {
+  return Array.isArray(caseItem.partners) ? caseItem.partners : [];
 }
 
 function renderDetailField(label, value, field, isWide = false) {
@@ -507,7 +610,7 @@ function renderLedgerPanel(type, title, caseItem, total) {
   const entries = isPayment ? caseItem.payments : caseItem.expenses;
   const personLabel = isPayment ? "收款人" : "支出人";
   const amountLabel = isPayment ? "收款金額" : "支出金額";
-  const methodLabel = isPayment ? "收款方式" : "支出方式";
+  const methodLabel = isPayment ? "收款方式" : "付款方式";
   const action = isPayment ? "addPayment" : "addExpense";
   return `
     <section class="ledger-panel">
@@ -516,6 +619,10 @@ function renderLedgerPanel(type, title, caseItem, total) {
         <span class="ledger-total">合計 ${formatCurrency(total)}</span>
       </header>
       <form class="quick-form" data-quick-entry="${type}" data-case-id="${escapeAttribute(caseItem.id)}" novalidate>
+        ${isPayment ? "" : `
+        <select class="text-input" name="partnerName" aria-label="合作單位">
+          ${partnerOptions(getPartners(caseItem))}
+        </select>`}
         <select class="text-input" name="personUserId" aria-label="${personLabel}" required>
           ${memberOptions(state.currentUser?.userId || "")}
         </select>
@@ -536,7 +643,7 @@ function renderLedgerEntries(entries) {
     <ul class="ledger-list">
       ${[...entries].reverse().map((entry) => `
         <li class="ledger-item">
-          <strong>${escapeHtml(entry.personName || "未指定")}</strong>
+          <strong>${escapeHtml(entry.partnerName ? `${entry.partnerName}／${entry.personName || "未指定"}` : (entry.personName || "未指定"))}</strong>
           <span>${formatCurrency(entry.amount)}</span>
           <small>${escapeHtml(entry.method || "未填方式")} · ${escapeHtml(formatDateTime(entry.createdAt))}</small>
         </li>
@@ -571,16 +678,126 @@ function handleCaseListClick(event) {
   const caseId = card?.dataset.caseId;
   if (!caseId) return;
 
-  if (actionButton.dataset.action === "toggle-case") {
-    if (state.openCaseIds.has(caseId)) state.openCaseIds.delete(caseId);
-    else state.openCaseIds.add(caseId);
-    renderCases();
-    return;
+  switch (actionButton.dataset.action) {
+    case "toggle-case":
+      if (state.openCaseIds.has(caseId)) state.openCaseIds.delete(caseId);
+      else state.openCaseIds.add(caseId);
+      renderCases();
+      return;
+    case "edit-case":
+      openEditModal(caseId, actionButton.dataset.field || "title");
+      return;
+    case "copy-ledger":
+      copyLedger(caseId);
+      return;
+    case "toggle-archive":
+      toggleArchive(caseId);
+      return;
+    case "remove-partner":
+      removePartner(caseId, actionButton.dataset.partnerId);
+      return;
+    default:
   }
+}
 
-  if (actionButton.dataset.action === "edit-case") {
-    openEditModal(caseId, actionButton.dataset.field || "title");
+async function copyLedger(caseId) {
+  const caseItem = state.cases.find((item) => item.id === caseId);
+  if (!caseItem) return;
+  const copied = await copyTextToClipboard(buildLedgerText(caseItem));
+  showToast(copied
+    ? "會計資料已複製，可直接貼到報表或訊息"
+    : "瀏覽器擋住了複製，請長按選取文字自行複製");
+}
+
+async function toggleArchive(caseId) {
+  const caseItem = state.cases.find((item) => item.id === caseId);
+  if (!caseItem) return;
+  try {
+    await runMutation({ action: "setArchived", caseId, archived: !caseItem.archived });
+    showToast(caseItem.archived ? "已取消封存" : "案件已封存");
+  } catch (error) {
+    showToast(getErrorMessage(error));
   }
+}
+
+async function removePartner(caseId, partnerId) {
+  if (!partnerId) return;
+  const caseItem = state.cases.find((item) => item.id === caseId);
+  const partner = getPartners(caseItem || {}).find((entry) => entry.id === partnerId);
+  if (!partner) return;
+  if (!confirm(`確定要刪除合作單位「${partner.name}」嗎？已經記過的支出不會受影響。`)) return;
+  try {
+    await runMutation({ action: "removePartner", caseId, partnerId });
+    showToast("合作單位已刪除");
+  } catch (error) {
+    showToast(getErrorMessage(error));
+  }
+}
+
+// 會計用純文字：只要收支，不要文件編輯紀錄。
+function buildLedgerText(caseItem) {
+  const paymentTotal = sumAmounts(caseItem.payments);
+  const expenseTotal = sumAmounts(caseItem.expenses);
+  const partners = getPartners(caseItem);
+  const lines = [
+    caseItem.title || "未命名案件",
+    `日期：${formatDate(caseItem.date)}｜狀態：${caseItem.status || "洽談中"}${caseItem.archived ? "（已封存）" : ""}`,
+    `負責人：${caseItem.ownerName || "未指定"}｜成案負責人：${caseItem.dealOwnerName || "未指定"}`,
+    `成案價：${formatAccountingAmount(caseItem.contractAmount)}｜預計支出：${formatAccountingAmount(caseItem.expectedExpense)}`
+  ];
+  if (partners.length) lines.push(`合作單位：${partners.map((partner) => partner.name).join("、")}`);
+
+  lines.push("", `【收款】合計 ${formatAccountingAmount(paymentTotal)}`);
+  lines.push(...(caseItem.payments?.length
+    ? caseItem.payments.map((entry) => [
+        formatDateOnly(entry.createdAt),
+        entry.personName || "未指定",
+        formatAccountingAmount(entry.amount),
+        entry.method || "未填方式"
+      ].join("  "))
+    : ["（無收款紀錄）"]));
+
+  lines.push("", `【支出】合計 ${formatAccountingAmount(expenseTotal)}`);
+  lines.push(...(caseItem.expenses?.length
+    ? caseItem.expenses.map((entry) => [
+        formatDateOnly(entry.createdAt),
+        entry.partnerName || "未指定單位",
+        entry.personName || "未指定",
+        formatAccountingAmount(entry.amount),
+        entry.method || "未填方式"
+      ].join("  "))
+    : ["（無支出紀錄）"]));
+
+  lines.push("", `收支結餘：${formatAccountingAmount(paymentTotal - expenseTotal)}`);
+  return lines.join("\n");
+}
+
+async function copyTextToClipboard(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (_) {
+    // LINE 內建瀏覽器有時候擋掉 clipboard API，往下走舊做法。
+  }
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.top = "0";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.select();
+  area.setSelectionRange(0, text.length);
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch (_) {
+    copied = false;
+  }
+  area.remove();
+  return copied;
 }
 
 function openRecordModal() {
@@ -606,7 +823,6 @@ function openEditModal(caseId, focusField = "title") {
   document.getElementById("edit-address").value = caseItem.addressRaw || "";
   document.getElementById("edit-contract-amount").value = Number(caseItem.contractAmount || 0);
   document.getElementById("edit-expected-expense").value = Number(caseItem.expectedExpense || 0);
-  document.getElementById("edit-crew").value = caseItem.crew || "";
   updateDescriptionCount();
   setFormError("edit-error", "");
   const fieldMap = {
@@ -618,8 +834,7 @@ function openEditModal(caseId, focusField = "title") {
     description: "edit-description",
     address: "edit-address",
     contractAmount: "edit-contract-amount",
-    expectedExpense: "edit-expected-expense",
-    crew: "edit-crew"
+    expectedExpense: "edit-expected-expense"
   };
   openModal("edit-modal", fieldMap[focusField] || "edit-case-title");
 }
@@ -687,13 +902,43 @@ async function submitCaseEdit(event) {
       description: String(data.description || "").trim(),
       address: String(data.address || "").trim(),
       contractAmount: Number(data.contractAmount || 0),
-      expectedExpense: Number(data.expectedExpense || 0),
-      crew: String(data.crew || "").trim()
+      expectedExpense: Number(data.expectedExpense || 0)
     });
     closeModal("edit-modal");
     showToast("案件資料已更新");
   } catch (error) {
     setFormError("edit-error", getErrorMessage(error));
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+async function handleCaseListSubmit(event) {
+  if (event.target.closest("[data-partner-form]")) {
+    await handlePartnerSubmit(event);
+    return;
+  }
+  await handleQuickEntrySubmit(event);
+}
+
+async function handlePartnerSubmit(event) {
+  const form = event.target.closest("[data-partner-form]");
+  event.preventDefault();
+  if (state.isBusy) return;
+  const name = String(new FormData(form).get("partnerName") || "").trim();
+  if (!name) {
+    showToast("請輸入合作單位名稱");
+    return;
+  }
+  const button = form.querySelector("button[type='submit']");
+  setButtonBusy(button, true, "新增中…");
+  try {
+    await runMutation({ action: "addPartner", caseId: form.dataset.caseId, partnerName: name });
+    state.openCaseIds.add(form.dataset.caseId);
+    renderCases();
+    showToast("合作單位已新增");
+  } catch (error) {
+    showToast(getErrorMessage(error));
   } finally {
     setButtonBusy(button, false);
   }
@@ -718,6 +963,7 @@ async function handleQuickEntrySubmit(event) {
       action: button.dataset.apiAction,
       caseId: form.dataset.caseId,
       personUserId: data.personUserId,
+      partnerName: String(data.partnerName || ""),
       amount,
       method
     });
@@ -778,7 +1024,8 @@ function applyDevMutation(payload) {
       contractAmount: 0,
       dealOwnerUserId: owner.userId,
       dealOwnerName: owner.displayName,
-      crew: "",
+      partners: [],
+      archived: false,
       expectedExpense: 0,
       payments: [],
       expenses: [],
@@ -791,6 +1038,20 @@ function applyDevMutation(payload) {
 
   const caseItem = state.cases.find((item) => item.id === payload.caseId);
   if (!caseItem) throw new Error("找不到案件。");
+  caseItem.updatedAt = now;
+
+  if (payload.action === "addPartner") {
+    caseItem.partners.push({ id: createId(), name: payload.partnerName });
+    return;
+  }
+  if (payload.action === "removePartner") {
+    caseItem.partners = caseItem.partners.filter((partner) => partner.id !== payload.partnerId);
+    return;
+  }
+  if (payload.action === "setArchived") {
+    caseItem.archived = payload.archived;
+    return;
+  }
   if (payload.action === "updateCase") {
     const owner = getMember(payload.ownerUserId);
     const dealOwner = getMember(payload.dealOwnerUserId);
@@ -807,8 +1068,7 @@ function applyDevMutation(payload) {
       addressDisplay: payload.address || "",
       addressUrl: extractFirstUrl(payload.address),
       contractAmount: payload.contractAmount,
-      expectedExpense: payload.expectedExpense,
-      crew: payload.crew
+      expectedExpense: payload.expectedExpense
     });
     caseItem.history.push({ id: createId(), timestamp: now, actorName: state.currentUser.displayName, action: "更新案件", detail: "案件資料已修改" });
     return;
@@ -819,6 +1079,7 @@ function applyDevMutation(payload) {
     id: createId(),
     personUserId: person.userId,
     personName: person.displayName,
+    partnerName: payload.action === "addExpense" ? String(payload.partnerName || "") : "",
     amount: payload.amount,
     method: payload.method,
     createdAt: now
@@ -857,6 +1118,13 @@ async function callApi(payload, requireAuthorized = true) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function partnerOptions(partners) {
+  return [`<option value="">未指定單位</option>`]
+    .concat(partners.map((partner) =>
+      `<option value="${escapeAttribute(partner.name)}">${escapeHtml(partner.name)}</option>`))
+    .join("");
 }
 
 function memberOptions(selectedId, allowBlank = false) {
@@ -937,6 +1205,16 @@ function formatDateTime(value) {
     minute: "2-digit",
     hour12: false
   }).format(date);
+}
+
+function formatAccountingAmount(value) {
+  return `NT$${Number(value || 0).toLocaleString("en-US")}`;
+}
+
+function formatDateOnly(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "未記錄";
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function toDateInputValue(date) {

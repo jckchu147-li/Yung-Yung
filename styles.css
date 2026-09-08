@@ -244,6 +244,23 @@ button:disabled {
   box-shadow: 0 0 0 3px rgb(184 135 79 / 16%);
 }
 
+/* iOS 的 <input type="date"> 有固有寬度，撐得比格線寬。
+   容器只要是 1fr（等同 minmax(auto, 1fr)）就縮不下去，整張表單會被推出框外。 */
+input[type="date"].text-input,
+input[type="number"].text-input {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.form-stack > *,
+.form-grid > *,
+.quick-form > *,
+.partner-form > * {
+  min-width: 0;
+}
+
 .gate-card .text-input {
   border-color: rgb(255 255 255 / 25%);
   color: #fff;
@@ -434,6 +451,106 @@ button:disabled {
   font-weight: 650;
 }
 
+.case-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-inline: 4px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.chip {
+  min-height: 38px;
+  padding: 7px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  font-size: 0.86rem;
+  font-weight: 700;
+  transition: color 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.chip:hover {
+  border-color: var(--brass);
+}
+
+.chip.is-active {
+  border-color: var(--forest);
+  color: #fff;
+  background: var(--forest);
+}
+
+.toolbar-sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-sort .text-input {
+  min-height: 38px;
+  width: auto;
+  padding: 6px 10px;
+  font-size: 0.86rem;
+}
+
+.partner-field .detail-value {
+  display: grid;
+  gap: 10px;
+}
+
+.partner-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.partner-form .text-input {
+  min-height: 40px;
+  padding: 7px 10px;
+  font-size: 0.88rem;
+}
+
+.partner-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.partner-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 7px 5px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.partner-item button {
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--danger);
+  background: rgb(168 67 55 / 9%);
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
 .case-list {
   display: grid;
   gap: 14px;
@@ -478,11 +595,23 @@ button:disabled {
 
 .summary-title {
   min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.summary-title strong {
   overflow: hidden;
   font-size: 1.04rem;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.summary-updated {
+  color: #8a8378;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
 }
 
 .money-ratio {
@@ -570,7 +699,9 @@ button:disabled {
 
 .detail-toolbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 8px;
   padding: 15px 0 12px;
 }
 
@@ -667,6 +798,14 @@ button:disabled {
   grid-template-columns: 1.05fr .85fr 1fr auto;
   gap: 8px;
   margin-bottom: 13px;
+}
+
+.quick-form[data-quick-entry="expense"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.quick-form[data-quick-entry="expense"] .quick-add-button {
+  grid-column: 1 / -1;
 }
 
 .quick-form .text-input {
@@ -881,6 +1020,7 @@ button:disabled {
 
 .form-stack {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -929,7 +1069,7 @@ button:disabled {
   }
 
   .quick-form {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .quick-add-button {
@@ -1025,7 +1165,7 @@ button:disabled {
 
   .detail-grid,
   .ledger-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .detail-field-wide {
@@ -1033,7 +1173,7 @@ button:disabled {
   }
 
   .quick-form {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .quick-add-button {
@@ -1046,7 +1186,7 @@ button:disabled {
   }
 
   .form-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .field-span-2 {
@@ -1067,7 +1207,7 @@ button:disabled {
     font-size: 0.85rem;
   }
 
-  .summary-title {
+  .summary-title strong {
     font-size: 0.95rem;
   }
 

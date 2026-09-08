@@ -7,9 +7,12 @@
   <meta name="description" content="室內設計案件、收支與進度的內部追蹤系統">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://static.line-scdn.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://profile.line-scdn.net; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://*.line.me https://*.line-scdn.net; frame-src https://*.line.me; frame-ancestors 'none'; base-uri 'none'; form-action 'self'">
   <title>案件追蹤系統</title>
+  <link rel="preconnect" href="https://static.line-scdn.net" crossorigin>
+  <link rel="preconnect" href="https://script.google.com" crossorigin>
+  <link rel="dns-prefetch" href="https://script.googleusercontent.com">
   <link rel="stylesheet" href="styles.css">
-  <script src="config.js"></script>
-  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="config.js" defer></script>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -42,7 +45,7 @@
       <p class="gate-copy">這個 LINE 帳號尚未取得案件權限。請輸入管理員驗證碼，驗證成功後，下次開啟會自動進入。</p>
       <form id="verify-form" novalidate>
         <label class="field-label" for="admin-password">管理員驗證碼</label>
-        <input class="text-input" id="admin-password" name="adminPassword" type="password" autocomplete="current-password" minlength="10" required>
+        <input class="text-input" id="admin-password" name="adminPassword" type="password" autocomplete="current-password" minlength="8" required>
         <p class="form-error" id="verify-error" hidden></p>
         <button class="button button-primary button-wide" id="verify-button" type="submit">驗證並進入</button>
       </form>
@@ -88,6 +91,26 @@
           <h2>目前進度</h2>
         </div>
         <p class="case-count" id="case-count">0 件案件</p>
+      </section>
+
+      <section class="case-toolbar">
+        <div class="chip-row" id="status-filters" role="group" aria-label="篩選案件狀態">
+          <button class="chip is-active" type="button" data-status="">全部</button>
+          <button class="chip" type="button" data-status="洽談中">洽談中</button>
+          <button class="chip" type="button" data-status="施工中">施工中</button>
+          <button class="chip" type="button" data-status="已結案">已結案</button>
+        </div>
+        <div class="chip-row">
+          <label class="toolbar-sort">
+            <span class="field-label">排序</span>
+            <select class="text-input" id="sort-select">
+              <option value="status">狀態優先</option>
+              <option value="date-desc">日期（新→舊）</option>
+              <option value="date-asc">日期（舊→新）</option>
+            </select>
+          </label>
+          <button class="chip" type="button" id="archive-toggle" aria-pressed="false">顯示封存</button>
+        </div>
       </section>
 
       <section class="case-list" id="case-list" aria-live="polite"></section>
@@ -193,10 +216,6 @@
         <label>
           <span class="field-label">預計支出</span>
           <input class="text-input" id="edit-expected-expense" name="expectedExpense" type="number" min="0" step="1" inputmode="numeric">
-        </label>
-        <label class="field-span-2">
-          <span class="field-label">負責工班</span>
-          <input class="text-input" id="edit-crew" name="crew" maxlength="80">
         </label>
         <p class="form-error field-span-2" id="edit-error" hidden></p>
         <footer class="modal-footer field-span-2">
