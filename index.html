@@ -1,1 +1,212 @@
-hi 
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#18211f">
+  <meta name="description" content="室內設計案件、收支與進度的內部追蹤系統">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://static.line-scdn.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://profile.line-scdn.net; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://*.line.me https://*.line-scdn.net; frame-src https://*.line.me; frame-ancestors 'none'; base-uri 'none'; form-action 'self'">
+  <title>案件追蹤系統</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="gate-shell" id="gate-shell">
+    <section class="gate-card" id="loading-view" aria-live="polite">
+      <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p class="eyebrow">PRIVATE WORKSPACE</p>
+      <h1>案件追蹤系統</h1>
+      <p class="gate-copy" id="loading-message">正在確認登入狀態…</p>
+      <div class="loading-line" aria-hidden="true"><span></span></div>
+    </section>
+
+    <section class="gate-card" id="login-view" hidden>
+      <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p class="eyebrow">PRIVATE WORKSPACE</p>
+      <h1>案件追蹤系統</h1>
+      <p class="gate-copy">案件內容僅提供已授權成員查看。請先使用 LINE 確認身分。</p>
+      <button class="button button-primary button-wide" id="login-button" type="button">使用 LINE 登入</button>
+      <p class="privacy-note">未完成登入與授權前，系統不會載入任何案件資料。</p>
+    </section>
+
+    <section class="gate-card" id="verify-view" hidden>
+      <div class="member-intro">
+        <div class="avatar avatar-large" id="verify-avatar" aria-hidden="true"></div>
+        <div>
+          <p class="eyebrow">首次驗證</p>
+          <h1 id="verify-name">LINE 成員</h1>
+        </div>
+      </div>
+      <p class="gate-copy">這個 LINE 帳號尚未取得案件權限。請輸入管理員驗證碼，驗證成功後，下次開啟會自動進入。</p>
+      <form id="verify-form" novalidate>
+        <label class="field-label" for="admin-password">管理員驗證碼</label>
+        <input class="text-input" id="admin-password" name="adminPassword" type="password" autocomplete="current-password" minlength="10" required>
+        <p class="form-error" id="verify-error" hidden></p>
+        <button class="button button-primary button-wide" id="verify-button" type="submit">驗證並進入</button>
+      </form>
+      <button class="text-button" id="verify-logout-button" type="button">改用其他 LINE 帳號</button>
+    </section>
+
+    <section class="gate-card" id="setup-view" hidden>
+      <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p class="eyebrow">SETUP REQUIRED</p>
+      <h1>尚未完成設定</h1>
+      <p class="gate-copy">請先在 <code>config.js</code> 填入這個網站專用的 GAS 網址與 LIFF ID，再重新開啟。</p>
+    </section>
+  </main>
+
+  <div class="app-shell" id="app-view" hidden>
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="wordmark">
+          <div class="brand-mark brand-mark-small" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div>
+            <p class="eyebrow">PROJECT LEDGER</p>
+            <h1>案件追蹤系統</h1>
+          </div>
+        </div>
+        <div class="header-actions">
+          <span class="sync-state" id="sync-state">已同步</span>
+          <button class="member-button" id="member-button" type="button" aria-label="開啟帳號選單" aria-expanded="false">
+            <span class="avatar" id="header-avatar" aria-hidden="true"></span>
+            <span id="header-name">成員</span>
+          </button>
+          <div class="account-menu" id="account-menu" hidden>
+            <button type="button" id="refresh-button">重新整理案件</button>
+            <button type="button" id="logout-button">登出 LINE</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="workspace-heading">
+        <div>
+          <p class="eyebrow">案件總覽</p>
+          <h2>目前進度</h2>
+        </div>
+        <p class="case-count" id="case-count">0 件案件</p>
+      </section>
+
+      <section class="case-list" id="case-list" aria-live="polite"></section>
+
+      <section class="empty-state" id="empty-state" hidden>
+        <div class="empty-grid" aria-hidden="true"></div>
+        <h2>還沒有案件</h2>
+        <p>從右下角的「紀錄」建立第一筆案件。</p>
+      </section>
+    </main>
+
+    <button class="record-fab" id="record-button" type="button" aria-label="新增案件紀錄">
+      <span aria-hidden="true">＋</span>紀錄
+    </button>
+  </div>
+
+  <div class="modal-overlay" id="record-modal" hidden>
+    <section class="modal-card modal-card-compact" role="dialog" aria-modal="true" aria-labelledby="record-title">
+      <header class="modal-header">
+        <div>
+          <p class="eyebrow">NEW PROJECT</p>
+          <h2 id="record-title">新增案件</h2>
+        </div>
+        <button class="close-button" type="button" data-close-modal="record-modal" aria-label="關閉">關閉</button>
+      </header>
+      <form id="record-form" class="form-stack" novalidate>
+        <label>
+          <span class="field-label">案件名稱</span>
+          <input class="text-input" id="record-case-title" name="title" maxlength="80" required>
+        </label>
+        <label>
+          <span class="field-label">負責人</span>
+          <select class="text-input" id="record-owner" name="ownerUserId" required></select>
+        </label>
+        <label>
+          <span class="field-label">日期</span>
+          <input class="text-input" id="record-date" name="date" type="date" required>
+        </label>
+        <label>
+          <span class="field-label">狀態</span>
+          <select class="text-input" id="record-status" name="status" required>
+            <option value="洽談中">洽談中</option>
+            <option value="施工中">施工中</option>
+            <option value="已結案">已結案</option>
+          </select>
+        </label>
+        <p class="form-error" id="record-error" hidden></p>
+        <footer class="modal-footer">
+          <button class="button button-secondary" type="button" data-close-modal="record-modal">取消</button>
+          <button class="button button-primary" id="record-submit" type="submit">建立案件</button>
+        </footer>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-overlay" id="edit-modal" hidden>
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="edit-title">
+      <header class="modal-header">
+        <div>
+          <p class="eyebrow">EDIT PROJECT</p>
+          <h2 id="edit-title">編輯案件</h2>
+        </div>
+        <button class="close-button" type="button" data-close-modal="edit-modal" aria-label="關閉">關閉</button>
+      </header>
+      <form id="edit-form" class="form-grid" novalidate>
+        <input id="edit-id" name="id" type="hidden">
+        <label class="field-span-2">
+          <span class="field-label">案件名稱</span>
+          <input class="text-input" id="edit-case-title" name="title" maxlength="80" required>
+        </label>
+        <label>
+          <span class="field-label">日期</span>
+          <input class="text-input" id="edit-date" name="date" type="date" required>
+        </label>
+        <label>
+          <span class="field-label">狀態</span>
+          <select class="text-input" id="edit-status" name="status" required>
+            <option value="洽談中">洽談中</option>
+            <option value="施工中">施工中</option>
+            <option value="已結案">已結案</option>
+          </select>
+        </label>
+        <label>
+          <span class="field-label">負責人</span>
+          <select class="text-input" id="edit-owner" name="ownerUserId" required></select>
+        </label>
+        <label>
+          <span class="field-label">成案負責人</span>
+          <select class="text-input" id="edit-deal-owner" name="dealOwnerUserId"></select>
+        </label>
+        <label class="field-span-2">
+          <span class="field-label">案件描述 <small><span id="description-count">0</span>/30</small></span>
+          <input class="text-input" id="edit-description" name="description" maxlength="30">
+        </label>
+        <label class="field-span-2">
+          <span class="field-label">地址或 Google 地圖網址</span>
+          <input class="text-input" id="edit-address" name="address" maxlength="240" placeholder="可輸入地標名稱、地址或 Google Maps 分享網址">
+        </label>
+        <label>
+          <span class="field-label">成案價</span>
+          <input class="text-input" id="edit-contract-amount" name="contractAmount" type="number" min="0" step="1" inputmode="numeric">
+        </label>
+        <label>
+          <span class="field-label">預計支出</span>
+          <input class="text-input" id="edit-expected-expense" name="expectedExpense" type="number" min="0" step="1" inputmode="numeric">
+        </label>
+        <label class="field-span-2">
+          <span class="field-label">負責工班</span>
+          <input class="text-input" id="edit-crew" name="crew" maxlength="80">
+        </label>
+        <p class="form-error field-span-2" id="edit-error" hidden></p>
+        <footer class="modal-footer field-span-2">
+          <button class="button button-secondary" type="button" data-close-modal="edit-modal">取消</button>
+          <button class="button button-primary" id="edit-submit" type="submit">儲存變更</button>
+        </footer>
+      </form>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
